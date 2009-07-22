@@ -1,2 +1,2 @@
 server: server.c
-	gcc -I/opt/local/include -L/opt/local/lib server.c -levent -o server
+	gcc -I/usr/local/include -L/usr/local/lib server.c -levent -o server -g -O0

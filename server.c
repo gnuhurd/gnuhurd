@@ -1,3 +1,4 @@
+#include <sys/types.h>
 #include <event.h>
 #include <evhttp.h>
 #include <unistd.h>
@@ -59,6 +60,7 @@ void do_generic_url(struct evhttp_request* req, void* userdata)
     }
     evbuffer_add_printf(buf, "<html><head><title>404 Not Found</title></head><body><h1>404 Not Found</h1><p>There is nothing to see here</p></body></html>");
     evhttp_send_reply(req, 404, "Not Found", buf);
+    evbuffer_free(buf);
 }
 
 void return_500(struct evhttp_request* req, void* _reason)
@@ -96,7 +98,7 @@ void return_static_content(struct evhttp_request* req, void* _content)
 
     struct static_content* content = (struct static_content*) _content;
     char tmpstr[64];
-    sprintf(tmpstr, "%d", content->len);
+    sprintf(tmpstr, "%d", (int) content->len);
     evhttp_remove_header(req->output_headers, "content-type");
     evhttp_add_header(req->output_headers, "content-type", content->content_type);
     evhttp_remove_header(req->output_headers, "content-length");
@@ -112,6 +114,7 @@ void return_static_content(struct evhttp_request* req, void* _content)
     evbuffer_add(buf, content->data, content->len);
 
     evhttp_send_reply(req, 200, "OK", buf);
+    evbuffer_free(buf);
 }
 
 void do_show_event(struct evhttp_request* req, void* userdata)
@@ -139,4 +142,5 @@ void do_show_event(struct evhttp_request* req, void* userdata)
     evhttp_add_header(req->output_headers, "content-type", "text/plain");
     evbuffer_add_printf(buf, "<html><head><title>200 OK</title></head><body><h1>200 OK</h1><p>You made it!</p></body></html>");
     evhttp_send_reply(req, 200, "OK", buf);
+    evbuffer_free(buf);
 }
