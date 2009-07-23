@@ -17,6 +17,8 @@ void do_show_event(struct evhttp_request*, void*);
 
 int main(int argc, char** argv)
 {
+    setenv("TZ", "", 1);
+
     event_init();
 
     http_server = evhttp_new(0);

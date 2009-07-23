@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <expat.h>
+#include <time.h>
 
 extern struct evhttp* http_server;
 
@@ -35,8 +36,8 @@ struct req_data
     char xmlData[1024];
     int xmlDataOff;
     char* title;
-    char* start;
-    char* duration;
+    time_t start;
+    int duration;
 };
 
 static void free_req_data(struct req_data** _d)
@@ -59,8 +60,6 @@ static void free_req_data(struct req_data** _d)
 
     if(d->conn) evhttp_connection_free(d->conn);
     if(d->title) free(d->title);
-    if(d->start) free(d->start);
-    if(d->duration) free(d->duration);
 
     free(d);
 }
@@ -202,7 +201,7 @@ static void got_api(struct evhttp_request* req, void* userdata)
 
     evhttp_remove_header(d->req->output_headers, "content-type");
     evhttp_add_header(d->req->output_headers, "content-type", "application/json");
-    evbuffer_add_printf(evbuf, "{ \"eventName\": \"%s\", \"serverTime\": 0, \"startTime\": 5, \"duration\": %s }\n", d->title, d->duration);
+    evbuffer_add_printf(evbuf, "{ \"eventName\": \"%s\", \"serverTime\": %d, \"startTime\": %d, \"duration\": %d }\n", d->title, (int)time(0), (int)(d->start), d->duration);
     evhttp_send_reply(d->req, 200, "OK", evbuf);
     evbuffer_free(evbuf);
     free_req_data(&d);
@@ -242,29 +241,24 @@ static void XMLCALL startElement(void *userData, const char *name, const char **
 static void XMLCALL endElement(void *userData, const char *name)
 {
     struct req_data* d = (struct req_data*) userData;
+    d->xmlData[d->xmlDataOff] = '\0';
     if(!strcmp(name, "title"))
     {
-        if(d->title = (char*) malloc(1 + d->xmlDataOff * sizeof(char)))
+        if(d->title = (char*) malloc(1 + d->xmlDataOff))
         {
-            memcpy(d->title, d->xmlData, d->xmlDataOff);
-            d->title[d->xmlDataOff] = '\0';
+            memcpy(d->title, d->xmlData, 1 + d->xmlDataOff);
         }
     }
     else if(!strcmp(name, "length"))
     {
-        if(d->duration = (char*) malloc(1 + d->xmlDataOff * sizeof(char)))
-        {
-            memcpy(d->duration, d->xmlData, d->xmlDataOff);
-            d->duration[d->xmlDataOff] = '\0';
-        }
+        d->duration = atoi(d->xmlData);
     } 
     else if(!strcmp(name, "start_time"))
     {
-        if(d->start = (char*) malloc(1 + d->xmlDataOff * sizeof(char)))
-        {
-            memcpy(d->start, d->xmlData, d->xmlDataOff);
-            d->start[d->xmlDataOff] = '\0';
-        }
+        struct tm date;
+        memset(&date, 0, sizeof(struct tm));
+        strptime(d->xmlData, "%Y-%m-%dT%H:%M:%SZ", &date);
+        d->start = mktime(&date);
     }
     d->xmlDataOff = 0;   
 }
@@ -273,7 +267,7 @@ static void XMLCALL xmlData(void *userData, const XML_Char *s, int len)
 {
     struct req_data* d = (struct req_data*) userData;
 
-    if(len+d->xmlDataOff > 1024) len = 1024-d->xmlDataOff;
+    if(len+d->xmlDataOff > 1023) len = 1023-d->xmlDataOff;
 
     memcpy(d->xmlData+d->xmlDataOff,s, len);
     d->xmlDataOff += len;
