@@ -33,7 +33,7 @@ int main(int argc, char** argv)
     evhttp_set_gencb(http_server, do_generic_url, 0);
     evhttp_set_cb(http_server, "/show", do_show_event, 0);
     register_static_url("/hello", "hello.html", "text/html");
-
+    register_static_url("/jquery.js", "jquery-1.3.2.min.js", "application/javascript");
     event_dispatch();
 }
 
