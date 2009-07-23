@@ -5,24 +5,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/mman.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-
-void do_generic_url(struct evhttp_request*, void*);
-void do_show_event(struct evhttp_request*, void*);
-void return_static_content(struct evhttp_request*, void*);
 
 struct evhttp* http_server;
 
-void register_static_url(const char* url, const char* file, const char* content_type);
+void register_static_url(const char* url, const char* content_type, const char* file);
+void register_static_url_gz(const char* url, const char* content_type, const char* file, const char* gzfile);
 
-struct static_content
-{
-    size_t len;
-    void * data;
-    const char * content_type;
-};
+void do_generic_url(struct evhttp_request*, void*);
+void do_show_event(struct evhttp_request*, void*);
 
 int main(int argc, char** argv)
 {
@@ -32,8 +22,8 @@ int main(int argc, char** argv)
     evhttp_bind_socket(http_server, "0.0.0.0", 8080);
     evhttp_set_gencb(http_server, do_generic_url, 0);
     evhttp_set_cb(http_server, "/show", do_show_event, 0);
-    register_static_url("/hello", "hello.html", "text/html");
-    register_static_url("/jquery.js", "jquery-1.3.2.min.js", "application/javascript");
+    register_static_url("/hello", "text/html", "hello.html");
+    register_static_url_gz("/jquery.js", "application/javascript", "jquery-1.3.2.min.js", "jquery-1.3.2.min.js.gz");
     event_dispatch();
 }
 
@@ -62,61 +52,6 @@ void do_generic_url(struct evhttp_request* req, void* userdata)
     evhttp_send_reply(req, 404, "Not Found", buf);
     evbuffer_free(buf);
 }
-
-void return_500(struct evhttp_request* req, void* _reason)
-{
-    evhttp_send_error(req, 500, (char *) _reason);
-}
-
-void register_static_url(const char* url, const char* file, const char* content_type)
-{
-    int fd;
-    struct stat fileinfo;
-    struct static_content* c;
-
-    c = (struct static_content*) malloc(sizeof(struct static_content));
-
-    c->content_type = content_type;
-    
-    fd = open(file, O_RDONLY);
-
-    fstat(fd, &fileinfo);
-    c->len = fileinfo.st_size;
-    c->data = mmap(0, c->len, PROT_READ, MAP_PRIVATE, fd, 0);
-    close(fd);
-
-    evhttp_set_cb(http_server, url, return_static_content, c);
-}
-
-void return_static_content(struct evhttp_request* req, void* _content)
-{
-    if(req->type == EVHTTP_REQ_POST)
-    {
-        evhttp_send_error(req, 405, "Method Not Allowed");
-        return;
-    }
-
-    struct static_content* content = (struct static_content*) _content;
-    char tmpstr[64];
-    sprintf(tmpstr, "%d", (int) content->len);
-    evhttp_remove_header(req->output_headers, "content-type");
-    evhttp_add_header(req->output_headers, "content-type", content->content_type);
-    evhttp_remove_header(req->output_headers, "content-length");
-    evhttp_add_header(req->output_headers, "content-length", tmpstr);
-    if(req->type == EVHTTP_REQ_HEAD)
-    {
-        evhttp_send_error(req, 200, "OK");
-        return;
-    }
-    
-    struct evbuffer *buf;
-    buf = evbuffer_new();
-    evbuffer_add(buf, content->data, content->len);
-
-    evhttp_send_reply(req, 200, "OK", buf);
-    evbuffer_free(buf);
-}
-
 void do_show_event(struct evhttp_request* req, void* userdata)
 {
     struct evbuffer *buf;
