@@ -64,6 +64,7 @@ static void return_static_content(struct evhttp_request* req, void* _content)
 
     if(req->type == EVHTTP_REQ_POST)
     {
+        printf("POST %s\n", req->uri);
         evhttp_send_error(req, 405, "Method Not Allowed");
         return;
     }
@@ -77,9 +78,12 @@ static void return_static_content(struct evhttp_request* req, void* _content)
     evhttp_add_header(req->output_headers, "content-length", tmpstr);
     if(req->type == EVHTTP_REQ_HEAD)
     {
+        printf("HEAD %s\n", req->uri);
         evhttp_send_error(req, 200, "OK");
         return;
     }
+    
+    printf("GET %s\n", req->uri);
     
     struct evbuffer *buf;
     buf = evbuffer_new();

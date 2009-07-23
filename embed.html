@@ -1,0 +1,62 @@
+<html><head>
+    <title>JTV Event Embed</title>
+    <link rel="stylesheet" href="/eventbase.css">
+    <script type="text/javascript" src="/jquery.js"></script>
+    <script type="text/javascript">
+        var query = location.href.split("?", 1);
+        if(query.length == 2) query = query[1];
+        else query="";
+
+        var clockSkew = 0;
+        var eventInfo = {};
+
+        var timeUntilStart = function(){
+            return eventInfo.startTime*1000-(new Date().getTime()+clockSkew);
+        };
+
+        var timeUntilEnd = function(){
+            return timeUntilStart()+eventInfo.Duration*1000;
+        };
+
+        var showDuring = function(){
+            $("div.during").css("display","block");
+            $("div.before").css("display","none");
+            $("div.after").css("display","none");
+        };
+
+        var showAfter = function(){
+            $("div.after").css("display","block");
+            $("div.before").css("display","none");
+            $("div.during").css("display","none");
+        };
+
+        var eventStart = function() {
+            $("div.during").load("/during?"+query, showDuring);
+            setTimeout(eventEnd, timeUntilEnd());
+        };
+
+        var eventEnd = function(){
+            $("div.after").load("/after?"+query, showAfter);
+            setTimeout(function(){
+                $("div.after").css("display","block");
+                $("div.during").css("display","none");
+            }, timeUntilEnd());
+        };
+
+        $(document).ready(function(){
+            $("div.before").load("/before?"+query);
+            $.getJSON("/info?"+query, function(obj) {
+                clockSkew = obj.serverTime*1000-(new Date().getTime());
+                eventInfo = obj;
+                document.title = obj.eventName;
+                if(timeUntilEnd() < 0) eventEnd();
+                else if(timeUntilStart() < 0) eventStart();
+                else setTimeout(eventStart, timeUntilStart());
+            });
+        });
+    </script>
+</head><body>
+<div class="before">&nbsp;</div>
+<div class="during">&nbsp;</div>
+<div class="after">&nbsp;</div>
+</body></html>
