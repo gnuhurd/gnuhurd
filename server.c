@@ -10,6 +10,7 @@ struct evhttp* http_server;
 
 void register_static_url(const char* url, const char* content_type, const char* file);
 void register_static_url_gz(const char* url, const char* content_type, const char* file, const char* gzfile);
+void register_info_json(const char* url);
 
 void do_generic_url(struct evhttp_request*, void*);
 void do_show_event(struct evhttp_request*, void*);
@@ -27,7 +28,7 @@ int main(int argc, char** argv)
     register_static_url("/before", "text/html", "before.html");
     register_static_url("/during", "text/html", "during.html");
     register_static_url("/after", "text/html", "after.html");
-    register_static_url("/info", "application/json", "info.json");
+    register_info_json("/info");
     register_static_url_gz("/jquery.js", "application/javascript", "jquery-1.3.2.min.js", "jquery-1.3.2.min.js.gz");
     event_dispatch();
 }

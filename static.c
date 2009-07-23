@@ -97,7 +97,7 @@ void register_static_url_gz(const char* url, const char* content_type, const cha
 {
     struct static_content** c;
 
-    c = (struct static_content**) malloc(sizeof(struct static_content*));
+    c = (struct static_content**) malloc(2*sizeof(struct static_content*));
 
     if(!c)
     {
