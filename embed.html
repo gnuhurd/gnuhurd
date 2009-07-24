@@ -15,48 +15,77 @@
         };
 
         var timeUntilEnd = function(){
-            return timeUntilStart()+eventInfo.Duration*1000;
+            return timeUntilStart()+eventInfo.duration*1000;
         };
 
         var showDuring = function(){
             $("div.during").css("display","block");
-            $("div.before").css("display","none");
+            $("div.before").fadeOut("slow");
             $("div.after").css("display","none");
         };
 
         var showAfter = function(){
             $("div.after").css("display","block");
             $("div.before").css("display","none");
-            $("div.during").css("display","none");
+            $("div.during").fadeOut("slow");
+        };
+
+        var renderCountdown = function(){
+            var t = timeUntilStart();
+            if(t <= 0) return "right now";
+            t /= 1000;
+            t = Math.floor(t);
+            if(t <= 60) return "in " + t + " seconds";
+            if(t <= 300) return "in " + Math.floor(t/60) + " minutes, " + t%60 + " seconds";
+            t /= 60;
+            t = Math.floor(t);
+            if(t <= 60) return "in " + t + " minutes";
+            if(t <= 180) return "in " + Math.floor(t/60) + " hours, " + t%60 + " minutes";
+            t /= 60;
+            t = Math.floor(t);
+            if(t < 24) return "in " + t + " hours";
+            t /= 24;
+            t = Math.floor(t);
+            return "in " + t + " days";
+        }
+
+        var updateCountdown = function(){
+            $(".timer").html(renderCountdown());
+            if(timeUntilStart() > 0) setTimeout(updateCountdown, timeUntilStart()/1000 + 500);
+        }
+
+        var showBefore = function(){
+            $(".channel_title").html(eventInfo.title);
+            $(".event_title").html(eventInfo.eventName);
+            $(".description").html(eventInfo.description);
+            updateCountdown();
         };
 
         var eventStart = function() {
-            $("div.during").load("/during"+query, showDuring);
+            $("div.during").load("/during?channel="+eventInfo.login, showDuring);
             setTimeout(eventEnd, timeUntilEnd());
         };
 
         var eventEnd = function(){
-            $("div.after").load("/after"+query, showAfter);
-            setTimeout(function(){
-                $("div.after").css("display","block");
-                $("div.during").css("display","none");
-            }, timeUntilEnd());
+            $("div.after").load("/after?channel="+eventInfo.login+"&time="+eventInfo.startTime", showAfter);
         };
 
         $(document).ready(function(){
-            $("div.before").load("/before"+query);
             $.getJSON("/info"+query, function(obj) {
                 clockSkew = obj.serverTime*1000-(new Date().getTime());
                 eventInfo = obj;
                 document.title = obj.eventName;
                 if(timeUntilEnd() < 0) eventEnd();
                 else if(timeUntilStart() < 0) eventStart();
-                else setTimeout(eventStart, timeUntilStart());
+                else {
+                    setTimeout(eventStart, timeUntilStart());
+                    $("div.before").load("/before"+query, showBefore);
+                }
             });
         });
     </script>
 </head><body>
-<div class="before">&nbsp;</div>
-<div class="during">&nbsp;</div>
-<div class="after">&nbsp;</div>
+<div class="before" style="z-index: 3">&nbsp;</div>
+<div class="during" style="z-index: 2">&nbsp;</div>
+<div class="after"  style="z-index: 1">&nbsp;</div>
 </body></html>

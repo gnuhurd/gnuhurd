@@ -23,6 +23,8 @@ static void XMLCALL startElement(void *userData, const char *name, const char **
 static void XMLCALL endElement(void *userData, const char *name);
 static void XMLCALL xmlData(void *userData, const XML_Char *s, int len);
 
+static char* escape_json_string(const char* in);
+
 void register_info_json(const char* url)
 {
     evhttp_set_cb(http_server, url, do_info, 0);
@@ -33,11 +35,16 @@ struct req_data
     struct evhttp_request* req;
     struct evkeyvalq* query_args;
     struct evhttp_connection* conn;
-    char xmlData[1024];
+    char xmlData[4096];
     int xmlDataOff;
-    char* title;
+    char* login;
+    char* channel_title;
+    char* event_title;
+    char* description;
+    char* profile_image;
     time_t start;
     int duration;
+    int in_channel;
 };
 
 static void free_req_data(struct req_data** _d)
@@ -59,7 +66,12 @@ static void free_req_data(struct req_data** _d)
     }
 
     if(d->conn) evhttp_connection_free(d->conn);
-    if(d->title) free(d->title);
+    
+    if(d->login) free(d->login);
+    if(d->channel_title) free(d->channel_title);
+    if(d->event_title) free(d->event_title);
+    if(d->profile_image) free(d->profile_image);
+    if(d->description) free(d->description);
 
     free(d);
 }
@@ -130,11 +142,11 @@ static void do_info(struct evhttp_request* req, void* userdata)
     
     char api_url[64];
     sprintf(api_url, "/api/event/show/%s.xml", id);
-    evhttp_add_header(api_req->output_headers, "host", "api.justin.tv");
+    evhttp_add_header(api_req->output_headers, "host", "staging.justin.tv");
     printf("%s\n", api_url);
     // issue request
 
-    if(!(d->conn = evhttp_connection_new("api.justin.tv", 80)))
+    if(!(d->conn = evhttp_connection_new("staging.justin.tv", 80)))
     {
         evhttp_request_free(api_req);
         free_req_data(&d);
@@ -201,40 +213,16 @@ static void got_api(struct evhttp_request* req, void* userdata)
 
     evhttp_remove_header(d->req->output_headers, "content-type");
     evhttp_add_header(d->req->output_headers, "content-type", "application/json");
-    evbuffer_add_printf(evbuf, "{ \"eventName\": \"%s\", \"serverTime\": %d, \"startTime\": %d, \"duration\": %d }\n", d->title, (int)time(0), (int)(d->start), d->duration);
+    evbuffer_add_printf(evbuf, "{ \"eventName\": \"%s\", \"description\": \"%s\", \"serverTime\": %d, \"startTime\": %d, \"duration\": %d, \"login\": \"%s\", \"title\": \"%s\", \"profile_image\": \"%s\" }\n", d->event_title, d->description, (int)time(0), (int)(d->start), d->duration, d->login, d->channel_title, d->profile_image);
     evhttp_send_reply(d->req, 200, "OK", evbuf);
     evbuffer_free(evbuf);
     free_req_data(&d);
 }
 
-
-/* This is simple demonstration of how to use expat. This program
-   reads an XML document from standard input and writes a line with
-   the name of each element to standard output indenting child
-   elements by one tab stop more than their parent element.
-   It must be used with Expat compiled for UTF-8 output.
-*/
-
-#include <stdio.h>
-#include "expat.h"
-
-#if defined(__amigaos__) && defined(__USE_INLINE__)
-#include <proto/expat.h>
-#endif
-
-#ifdef XML_LARGE_SIZE
-#if defined(XML_USE_MSC_EXTENSIONS) && _MSC_VER < 1400
-#define XML_FMT_INT_MOD "I64"
-#else
-#define XML_FMT_INT_MOD "ll"
-#endif
-#else
-#define XML_FMT_INT_MOD "l"
-#endif
-
 static void XMLCALL startElement(void *userData, const char *name, const char **atts)
 {
     struct req_data* d = (struct req_data*) userData;
+    if(!strcmp(name, "channel")) d->in_channel = 1;
     d->xmlDataOff = 0;
 }
 
@@ -242,12 +230,28 @@ static void XMLCALL endElement(void *userData, const char *name)
 {
     struct req_data* d = (struct req_data*) userData;
     d->xmlData[d->xmlDataOff] = '\0';
-    if(!strcmp(name, "title"))
+    if(!strcmp(name, "channnel"))
     {
-        if(d->title = (char*) malloc(1 + d->xmlDataOff))
-        {
-            memcpy(d->title, d->xmlData, 1 + d->xmlDataOff);
-        }
+        d->in_channel = 0;
+    }
+    else if(!strcmp(name, "description"))
+    {
+        d->description = escape_json_string(d->xmlData);
+    }
+    else if(!strcmp(name, "login"))
+    {
+        d->login = escape_json_string(d->xmlData);
+    }
+    else if(!strcmp(name, "title"))
+    {
+        if(d->in_channel)
+            d->channel_title = escape_json_string(d->xmlData);
+        else
+            d->event_title = escape_json_string(d->xmlData);
+    }
+    else if(!strcmp(name, "image_url_large"))
+    {
+        d->profile_image = escape_json_string(d->xmlData);
     }
     else if(!strcmp(name, "length"))
     {
@@ -267,9 +271,39 @@ static void XMLCALL xmlData(void *userData, const XML_Char *s, int len)
 {
     struct req_data* d = (struct req_data*) userData;
 
-    if(len+d->xmlDataOff > 1023) len = 1023-d->xmlDataOff;
+    if(len+d->xmlDataOff > 4095) len = 4095-d->xmlDataOff;
 
     memcpy(d->xmlData+d->xmlDataOff,s, len);
     d->xmlDataOff += len;
+}
+
+static char* escape_json_string(const char* in)
+{
+    int finalSize = 0;
+    char* rtn;
+    const char* tmpi = in;
+    while(*tmpi)
+    {
+        if(*tmpi == '"' || *tmpi == '\\') finalSize++;
+        finalSize++;
+        tmpi++;
+    }
+
+    rtn = (char*) malloc(finalSize+2);
+
+    if(rtn == 0) return 0;
+
+    char* tmpo = rtn;
+    tmpi = in;
+
+    while(*tmpi)
+    {
+        if(*tmpi == '"' || *tmpi == '\\') { *tmpo = '\\'; tmpo++; } 
+        *tmpo = *tmpi;
+        tmpi++; tmpo++;
+    }
+    *tmpo = '\0';
+
+    return rtn;
 }
 
