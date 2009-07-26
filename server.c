@@ -30,7 +30,7 @@ int main(int argc, char** argv)
     register_static_url("/embed", "text/html", "embed.html");
     register_static_url("/before", "text/html", "before.html");
     register_during("/during");
-    register_static_url("/after", "text/html", "after.html");
+    register_after("/after");
     register_info_json("/info");
     register_static_url_gz("/jquery.js", "application/javascript", "jquery-1.3.2.min.js", "jquery-1.3.2.min.js.gz");
     event_dispatch();

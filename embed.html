@@ -67,7 +67,7 @@
         };
 
         var eventEnd = function(){
-            $("div.after").load("/after?channel="+eventInfo.login+"&time="+eventInfo.startTime", showAfter);
+            $("div.after").load("/after?channel="+eventInfo.login+"&start="+eventInfo.startTime, showAfter);
         };
 
         $(document).ready(function(){

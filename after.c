@@ -11,7 +11,7 @@
 
 extern struct evhttp* http_server;
 
-void register_info_json(const char* url);
+void register_after(const char* url);
 
 
 // { "eventName": "Test Event", "serverTime": 0, "startTime": 5, "Duration": 5 }
@@ -25,7 +25,7 @@ static void XMLCALL xmlData(void *userData, const XML_Char *s, int len);
 
 static char* escape_json_string(const char* in);
 
-void register_info_json(const char* url)
+void register_after(const char* url)
 {
     evhttp_set_cb(http_server, url, do_info, 0);
 }
@@ -35,17 +35,23 @@ struct req_data
     struct evhttp_request* req;
     struct evkeyvalq* query_args;
     struct evhttp_connection* conn;
+    time_t start;
+    const char* login;
+    int offset;
+    int count;
+    int done;
+
+    char* best_embed_code;
+    time_t best_start;
+    
+    char* cur_embed_code;
+    time_t cur_start;
+
     char xmlData[4096];
     int xmlDataOff;
-    char* login;
-    char* channel_title;
-    char* event_title;
-    char* description;
-    char* profile_image;
-    time_t start;
-    int duration;
-    int in_channel;
 };
+
+static void do_api_request(struct req_data* d);
 
 static void free_req_data(struct req_data** _d)
 {
@@ -66,13 +72,9 @@ static void free_req_data(struct req_data** _d)
     }
 
     if(d->conn) evhttp_connection_free(d->conn);
+    if(d->best_embed_code) free(d->best_embed_code);
+    if(d->cur_embed_code) free(d->cur_embed_code);
     
-    if(d->login) free(d->login);
-    if(d->channel_title) free(d->channel_title);
-    if(d->event_title) free(d->event_title);
-    if(d->profile_image) free(d->profile_image);
-    if(d->description) free(d->description);
-
     free(d);
 }
 
@@ -121,36 +123,58 @@ static void do_info(struct evhttp_request* req, void* userdata)
 
     // find id field; build request
     
-    const char* id = evhttp_find_header(d->query_args, "id");
+    const char* login = evhttp_find_header(d->query_args, "channel");
 
-    if(!id || strlen(id)>20)
+    if(!login)
     {
         free_req_data(&d);
         evhttp_send_error(req, 404, "Not Found");
         return;
     }
 
+    d->login = login;
+
+    const char* start_time = evhttp_find_header(d->query_args, "start");
+    if(!start_time)
+    {
+        free_req_data(&d);
+        evhttp_send_error(req, 404, "Not Found");
+        return;
+    }
+    
+    d->start = (time_t) atol(start_time);
+    
+    do_api_request(d);
+}
+
+static void do_api_request(struct req_data* d)
+{
     struct evhttp_request* api_req;
+
+    if(d->conn) evhttp_connection_free(d->conn);
+    d->conn = 0;
 
     if(!(api_req = evhttp_request_new(got_api, d)))
     {
         free_req_data(&d);
-        evhttp_send_error(req, 500, "Internal Server Error");
+        evhttp_send_error(d->req, 500, "Internal Server Error");
         fprintf(stderr, "info.c:do_info(): couldn't alloc evhttp_request");
         return;
     }
     
     char api_url[64];
-    sprintf(api_url, "/api/event/show/%s.xml", id);
-    evhttp_add_header(api_req->output_headers, "host", "api.justin.tv");
+    sprintf(api_url, "/api/channel/clips/%s.xml?limit=100&offset=%d", d->login, d->offset);
+    d->offset += 100;
+
+    evhttp_add_header(api_req->output_headers, "host", "staging.justin.tv");
     printf("%s\n", api_url);
     // issue request
 
-    if(!(d->conn = evhttp_connection_new("api.justin.tv", 80)))
+    if(!(d->conn = evhttp_connection_new("staging.justin.tv", 80)))
     {
         evhttp_request_free(api_req);
         free_req_data(&d);
-        evhttp_send_error(req, 500, "Internal Server Error");
+        evhttp_send_error(d->req, 500, "Internal Server Error");
         fprintf(stderr, "info.c:do_info(): couldn't alloc evhttp_connection\n");
         return;
     }
@@ -158,7 +182,7 @@ static void do_info(struct evhttp_request* req, void* userdata)
     if(evhttp_make_request(d->conn, api_req, EVHTTP_REQ_GET, api_url) == -1)
     {
         free_req_data(&d);
-        evhttp_send_error(req, 500, "Internal Server Error");
+        evhttp_send_error(d->req, 500, "Internal Server Error");
         fprintf(stderr, "info.c:do_info(): error making api request\n");
     }
 }
@@ -184,6 +208,8 @@ static void got_api(struct evhttp_request* req, void* userdata)
     XML_SetElementHandler(parser, startElement, endElement);
     XML_SetCharacterDataHandler(parser, xmlData);
 
+    d->count = 0;
+
     char buf[4096];
     int buflen;
     while((buflen = evbuffer_remove(req->input_buffer, buf, 4096)) > 0)
@@ -201,6 +227,12 @@ static void got_api(struct evhttp_request* req, void* userdata)
 
     // return static result
 
+    if((! d->done) && (d->count == 100))
+    {
+        do_api_request(d);
+        return;
+    }
+
     struct evbuffer *evbuf;
     evbuf = evbuffer_new();
     if (buf == NULL)
@@ -212,8 +244,9 @@ static void got_api(struct evhttp_request* req, void* userdata)
     }
 
     evhttp_remove_header(d->req->output_headers, "content-type");
-    evhttp_add_header(d->req->output_headers, "content-type", "application/json");
-    evbuffer_add_printf(evbuf, "{ \"eventName\": \"%s\", \"description\": \"%s\", \"serverTime\": %d, \"startTime\": %d, \"duration\": %d, \"login\": \"%s\", \"title\": \"%s\", \"profile_image\": \"%s\" }\n", d->event_title, d->description, (int)time(0), (int)(d->start), d->duration, d->login, d->channel_title, d->profile_image);
+    evhttp_add_header(d->req->output_headers, "content-type", "text/html");
+
+    evbuffer_add_printf(evbuf, "%s", d->best_embed_code);
     evhttp_send_reply(d->req, 200, "OK", evbuf);
     evbuffer_free(evbuf);
     free_req_data(&d);
@@ -222,47 +255,37 @@ static void got_api(struct evhttp_request* req, void* userdata)
 static void XMLCALL startElement(void *userData, const char *name, const char **atts)
 {
     struct req_data* d = (struct req_data*) userData;
-    if(!strcmp(name, "channel")) d->in_channel = 1;
     d->xmlDataOff = 0;
 }
 
 static void XMLCALL endElement(void *userData, const char *name)
 {
     struct req_data* d = (struct req_data*) userData;
+    if(d->done) return;
+
     d->xmlData[d->xmlDataOff] = '\0';
-    if(!strcmp(name, "channnel"))
+    if(!strcmp(name, "clip"))
     {
-        d->in_channel = 0;
+        long best_diff = abs(d->best_start - d->start);
+        long cur_diff = abs(d->cur_start - d->start);
+        if( cur_diff > best_diff ) { d->done = 1; return; }
+        free(d->best_embed_code);
+        d->best_embed_code = d->cur_embed_code;
+        d->best_start = d->cur_start;
+        d->cur_embed_code = 0;
+        d->cur_start = 0;
     }
-    else if(!strcmp(name, "description"))
+    else if(!strcmp(name, "embed_code"))
     {
-        d->description = escape_json_string(d->xmlData);
+        d->cur_embed_code = (char *) malloc(d->xmlDataOff+2);
+        strcpy(d->cur_embed_code, d->xmlData);
     }
-    else if(!strcmp(name, "login"))
-    {
-        d->login = escape_json_string(d->xmlData);
-    }
-    else if(!strcmp(name, "title"))
-    {
-        if(d->in_channel)
-            d->channel_title = escape_json_string(d->xmlData);
-        else
-            d->event_title = escape_json_string(d->xmlData);
-    }
-    else if(!strcmp(name, "image_url_large"))
-    {
-        d->profile_image = escape_json_string(d->xmlData);
-    }
-    else if(!strcmp(name, "length"))
-    {
-        d->duration = atoi(d->xmlData);
-    } 
     else if(!strcmp(name, "start_time"))
     {
         struct tm date;
         memset(&date, 0, sizeof(struct tm));
         strptime(d->xmlData, "%Y-%m-%dT%H:%M:%SZ", &date);
-        d->start = mktime(&date);
+        d->cur_start = mktime(&date);
     }
     d->xmlDataOff = 0;   
 }

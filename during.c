@@ -63,7 +63,7 @@ static void do_during(struct evhttp_request* req, void* userdata)
 
     struct evbuffer* out;
     out = evbuffer_new();
-    evbuffer_add_printf(out, "%s", "<object type=\"application/x-shockwave-flash\" height=\"100%\" width=\"100%\" id=\"live_embed_player_flash\" data=\"http://www.justin.tv/widgets/live_embed_player.swf?channel=apidemo\" bgcolor=\"#000000\"><param name=\"allowFullScreen\" value=\"true\" /><param name=\"allowscriptaccess\" value=\"always\" /><param name=\"movie\" value=\"http://www.justin.tv/widgets/live_embed_player.swf\" /><param name=\"flashvars\" value=\"channel=apidemo&auto_play=true&start_volume=50\" /></object>");
+    evbuffer_add_printf(out, "<object type=\"application/x-shockwave-flash\" height=\"100%%\" width=\"100%%\" id=\"live_embed_player_flash\" data=\"http://www.justin.tv/widgets/live_embed_player.swf?channel=%s\" bgcolor=\"#000000\"><param name=\"allowFullScreen\" value=\"true\" /><param name=\"allowscriptaccess\" value=\"always\" /><param name=\"movie\" value=\"http://www.justin.tv/widgets/live_embed_player.swf\" /><param name=\"flashvars\" value=\"channel=%s&auto_play=true&start_volume=50\" /></object>", login, login);
 
     while(x = args.tqh_first)
     {
