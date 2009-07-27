@@ -11,7 +11,7 @@
 
 extern struct evhttp* http_server;
 
-void register_info_json(const char* url);
+void register_selector_url(const char* url);
 
 
 // { "eventName": "Test Event", "serverTime": 0, "startTime": 5, "Duration": 5 }
@@ -25,7 +25,7 @@ static void XMLCALL xmlData(void *userData, const XML_Char *s, int len);
 
 static char* escape_json_string(const char* in);
 
-void register_info_json(const char* url)
+void register_selector_url(const char* url)
 {
     evhttp_set_cb(http_server, url, do_info, 0);
 }
@@ -37,14 +37,11 @@ struct req_data
     struct evhttp_connection* conn;
     char xmlData[4096];
     int xmlDataOff;
-    char* login;
-    char* channel_title;
-    char* event_title;
+    const char* login;
+    char* title;
     char* description;
-    char* profile_image;
-    time_t start;
-    int duration;
-    int in_channel;
+    char* id;
+    struct evbuffer* out;
 };
 
 static void free_req_data(struct req_data** _d)
@@ -67,11 +64,11 @@ static void free_req_data(struct req_data** _d)
 
     if(d->conn) evhttp_connection_free(d->conn);
     
-    if(d->login) free(d->login);
-    if(d->channel_title) free(d->channel_title);
-    if(d->event_title) free(d->event_title);
-    if(d->profile_image) free(d->profile_image);
+    if(d->id) free(d->id);
+    if(d->title) free(d->title);
     if(d->description) free(d->description);
+
+    if(d->out) evbuffer_free(d->out);
 
     free(d);
 }
@@ -121,9 +118,9 @@ static void do_info(struct evhttp_request* req, void* userdata)
 
     // find id field; build request
     
-    const char* id = evhttp_find_header(d->query_args, "id");
+    d->login = evhttp_find_header(d->query_args, "login");
 
-    if(!id || strlen(id)>20)
+    if(!d->login || strlen(d->login) > 20)
     {
         free_req_data(&d);
         evhttp_send_error(req, 404, "Not Found");
@@ -141,7 +138,7 @@ static void do_info(struct evhttp_request* req, void* userdata)
     }
     
     char api_url[64];
-    sprintf(api_url, "/api/event/show/%s.xml", id);
+    sprintf(api_url, "/api/channel/events/%s.xml", d->login);
     evhttp_add_header(api_req->output_headers, "host", "api.justin.tv");
     printf("%s\n", api_url);
     // issue request
@@ -182,6 +179,19 @@ static void got_api(struct evhttp_request* req, void* userdata)
     XML_SetElementHandler(parser, startElement, endElement);
     XML_SetCharacterDataHandler(parser, xmlData);
 
+    d->out = evbuffer_new();
+
+    if (d->out == NULL)
+    {
+        evhttp_send_error(d->req, 500, "Internal Server Error");
+        free_req_data(&d);
+        fprintf(stderr, "info.c:got_api(): couldn't alloc evbuffer\n");
+        return;
+    }
+
+    evbuffer_add_printf(d->out, "<html><head><title>Event embeds for %s</title></head><body><h1>Event embeds for %s</h1>\n", d->login, d->login);
+    evbuffer_add_printf(d->out, "<p><iframe name=\"preview\" width=\"428\" height=\"368\">&nbsp</iframe></p><ul>\n");
+
     char buf[4096];
     int buflen;
     while((buflen = evbuffer_remove(req->input_buffer, buf, 4096)) > 0)
@@ -196,30 +206,19 @@ static void got_api(struct evhttp_request* req, void* userdata)
     }
     XML_ParserFree(parser);
 
+    evbuffer_add_printf(d->out, "</ul></body></html>");
+
     // return static result
 
-    struct evbuffer *evbuf;
-    evbuf = evbuffer_new();
-    if (buf == NULL)
-    {
-        evhttp_send_error(d->req, 500, "Internal Server Error");
-        free_req_data(&d);
-        fprintf(stderr, "info.c:got_api(): couldn't alloc evbuffer\n");
-        return;
-    }
-
     evhttp_remove_header(d->req->output_headers, "content-type");
-    evhttp_add_header(d->req->output_headers, "content-type", "application/json");
-    evbuffer_add_printf(evbuf, "{ \"eventName\": \"%s\", \"description\": \"%s\", \"serverTime\": %d, \"startTime\": %d, \"duration\": %d, \"login\": \"%s\", \"title\": \"%s\", \"profile_image\": \"%s\" }\n", d->event_title, d->description, (int)time(0), (int)(d->start), d->duration, d->login, d->channel_title, d->profile_image);
-    evhttp_send_reply(d->req, 200, "OK", evbuf);
-    evbuffer_free(evbuf);
+    evhttp_add_header(d->req->output_headers, "content-type", "text/html");
+    evhttp_send_reply(d->req, 200, "OK", d->out);
     free_req_data(&d);
 }
 
 static void XMLCALL startElement(void *userData, const char *name, const char **atts)
 {
     struct req_data* d = (struct req_data*) userData;
-    if(!strcmp(name, "channel")) d->in_channel = 1;
     d->xmlDataOff = 0;
 }
 
@@ -227,39 +226,24 @@ static void XMLCALL endElement(void *userData, const char *name)
 {
     struct req_data* d = (struct req_data*) userData;
     d->xmlData[d->xmlDataOff] = '\0';
-    if(!strcmp(name, "channnel"))
+    if(!strcmp(name, "event"))
     {
-        d->in_channel = 0;
+        evbuffer_add_printf(d->out, "<li><a href=\"/embed?id=%s\" target=\"preview\">%s</a> -- %s</li>\n", d->id, d->title, d->description);
+        free(d->description); d->description = NULL;
+        free(d->title); d->title = NULL;
+        free(d->id); d->id = NULL;
     }
     else if(!strcmp(name, "description"))
     {
         d->description = escape_json_string(d->xmlData);
     }
-    else if(!strcmp(name, "login"))
+    else if(!strcmp(name, "id"))
     {
-        d->login = escape_json_string(d->xmlData);
+        d->id = escape_json_string(d->xmlData);
     }
     else if(!strcmp(name, "title"))
     {
-        if(d->in_channel)
-            d->channel_title = escape_json_string(d->xmlData);
-        else
-            d->event_title = escape_json_string(d->xmlData);
-    }
-    else if(!strcmp(name, "image_url_large"))
-    {
-        d->profile_image = escape_json_string(d->xmlData);
-    }
-    else if(!strcmp(name, "length"))
-    {
-        d->duration = atoi(d->xmlData);
-    } 
-    else if(!strcmp(name, "start_time"))
-    {
-        struct tm date;
-        memset(&date, 0, sizeof(struct tm));
-        strptime(d->xmlData, "%Y-%m-%dT%H:%M:%SZ", &date);
-        d->start = mktime(&date);
+        d->title = escape_json_string(d->xmlData);
     }
     d->xmlDataOff = 0;   
 }

@@ -1,3 +1,5 @@
+#define _GNU_SOURCE
+
 #include <sys/types.h>
 #include <sys/queue.h>
 #include <event.h>
@@ -8,6 +10,8 @@
 #include <string.h>
 #include <expat.h>
 #include <time.h>
+#include <regex.h>
+#include <string.h>
 
 extern struct evhttp* http_server;
 
@@ -191,8 +195,6 @@ static void got_api(struct evhttp_request* req, void* userdata)
 {
     struct req_data* d = (struct req_data*) userdata;
 
-    printf("got_api() called\n");
-
     if(req->response_code != 200)
     {
         evhttp_send_error(d->req, 500, "Internal Server Error");
@@ -214,7 +216,6 @@ static void got_api(struct evhttp_request* req, void* userdata)
     int buflen;
     while((buflen = evbuffer_remove(req->input_buffer, buf, 4096)) > 0)
     {
-        printf("%d\n", buflen);
         if(XML_Parse(parser, buf, buflen, 0) == XML_STATUS_ERROR)
         {
             evhttp_send_error(d->req, 500, "Internal Server Error");
@@ -246,7 +247,51 @@ static void got_api(struct evhttp_request* req, void* userdata)
     evhttp_remove_header(d->req->output_headers, "content-type");
     evhttp_add_header(d->req->output_headers, "content-type", "text/html");
 
-    evbuffer_add_printf(evbuf, "%s", d->best_embed_code);
+    regex_t width_re;
+    regex_t height_re;
+
+    regmatch_t match;
+    char s1[5192];
+    char s2[5192];
+    char* p;
+
+    int result;
+
+    regcomp(&width_re, "width=\"[0-9]*\"", REG_EXTENDED);
+    regcomp(&height_re, "height=\"[0-9]*\"", REG_EXTENDED);
+
+    result = regexec(&width_re, d->best_embed_code, 1, &match, 0);
+
+    if(!result)
+    {
+        d->best_embed_code[match.rm_so] = '\0';
+        p = stpcpy(s1, d->best_embed_code);
+        p = stpcpy(p, "width=\"100%\"");
+        stpcpy(p, d->best_embed_code+match.rm_eo);
+    }
+    else
+    {
+        strcpy(s1, d->best_embed_code);
+    }
+   
+    result = regexec(&height_re, s1, 1, &match, 0);
+
+    if(!result)
+    {
+        s1[match.rm_so] = '\0';
+        p = stpcpy(s2, s1);
+        p = stpcpy(p, "height=\"100%\"");
+        stpcpy(p, s1+match.rm_eo);
+    }
+    else
+    {
+        strcpy(s2, s1);
+    }
+
+    regfree(&width_re);
+    regfree(&height_re);
+
+    evbuffer_add_printf(evbuf, "%s", s2);
     evhttp_send_reply(d->req, 200, "OK", evbuf);
     evbuffer_free(evbuf);
     free_req_data(&d);

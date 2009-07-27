@@ -12,6 +12,8 @@ void register_static_url(const char* url, const char* content_type, const char* 
 void register_static_url_gz(const char* url, const char* content_type, const char* file, const char* gzfile);
 void register_info_json(const char* url);
 void register_during(const char* url);
+void register_after(const char* url);
+void register_select_url(const char* url);
 
 void do_generic_url(struct evhttp_request*, void*);
 void do_show_event(struct evhttp_request*, void*);
@@ -29,9 +31,11 @@ int main(int argc, char** argv)
     register_static_url("/eventbase.css", "text/css", "eventbase.css");
     register_static_url("/embed", "text/html", "embed.html");
     register_static_url("/before", "text/html", "before.html");
+    register_static_url("/", "text/html", "index.html");
     register_during("/during");
     register_after("/after");
     register_info_json("/info");
+    register_selector_url("/select");
     register_static_url_gz("/jquery.js", "application/javascript", "jquery-1.3.2.min.js", "jquery-1.3.2.min.js.gz");
     event_dispatch();
 }
