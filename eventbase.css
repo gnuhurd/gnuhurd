@@ -1,10 +1,100 @@
-div.before,div.during,div.after {
+img {
+    border-width: 0px;
+}
+
+img.ul {
     position: absolute;
     top: 0px;
     left: 0px;
-    width: 100%;
-    height: 100%;
-    overflow: auto;
+    z-index: -1;
+}
+
+img.ur {
+    position: absolute;
+    top: 0px;
+    right: 0px;
+    z-index: -1;
+}
+
+img.ll {
+    position: absolute;
+    bottom: 0px;
+    left: 0px;
+    z-index: -1;
+}
+
+img.lr {
+    position: absolute;
+    bottom: 0px;
+    right: 0px;
+    z-index: -1;
+}
+
+img.left {
+    position: absolute;
+    top: 0px;
+    bottom: 0px;
+    left: 0px;
+    z-index: -2;
+}
+
+img.right {
+    position: absolute;
+    top: 0px;
+    bottom: 0px;
+    right: 0px;
+    z-index: -2;
+}
+
+.eventtitle {
+    color: rgb(204,255,153);
+    font-size: 18pt;
+    font-weight: 100;
+}
+
+.timer {
+    color: white;
+    font-size: 36pt;
+    margin-top: 24pt;
+    font-weight: 100;
+}
+
+div.before p {
+    color: rgb(180,180,180);
+    margin-top: -6pt;
+    font-size: 12pt;
+    font-weight: 100;
+}
+
+div.header {
+    position: absolute;
+    top: 0px;
+    left: 0px;
+    right: 0px;
+    height: 72px;
+    padding-left: 5px;
+}
+
+div.footer {
+    position: absolute;
+    left: 0px;
+    right: 0px;
+    bottom: 0px;
+    height: 28px;
+}
+
+div.before {
+    background-color: black;
+    color: white;
+    font-family: sans-serif;
+}
+
+div.before,div.during,div.after {
+    position: absolute;
+    top: 72px;
+    left: 2px;
+    right: 4px;
+    bottom: 28px;
 }
 
 div.during,div.after {

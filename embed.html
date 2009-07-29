@@ -53,10 +53,11 @@
             if(timeUntilStart() > 0) setTimeout(updateCountdown, 1000);
         }
 
-        var showBefore = function(){
-            $(".channel_title").html(eventInfo.title);
-            $(".event_title").html(eventInfo.eventName);
+        var renderTemplate = function(){
+            $(".channeltitle").html(eventInfo.title);
+            $(".eventtitle").html(eventInfo.eventName);
             $(".description").html(eventInfo.description);
+            $("img.profile").attr("src", eventInfo.profile_image);
             updateCountdown();
         };
 
@@ -74,17 +75,20 @@
                 clockSkew = obj.serverTime*1000-(new Date().getTime());
                 eventInfo = obj;
                 document.title = obj.eventName;
+                renderTemplate();
                 if(timeUntilEnd() < 0) eventEnd();
                 else if(timeUntilStart() < 0) eventStart();
                 else {
                     setTimeout(eventStart, timeUntilStart());
-                    $("div.before").load("/before"+query, showBefore);
+                    $("div.before").load("/before"+query, renderTemplate);
                 }
             });
         });
     </script>
 </head><body>
+<div class="header"><img class="profile" src="broken.jpg" width="48" height="48" float="left"><span class="channeltitle">&nbsp;</span><br><span class="description">&nbsp;</span></div>
 <div class="before" style="z-index: 3">&nbsp;</div>
 <div class="during" style="z-index: 2">&nbsp;</div>
 <div class="after"  style="z-index: 1">&nbsp;</div>
+<div class="footer">powered by <a href="http://justin.tv">justin.tv</a></div>
 </body></html>
