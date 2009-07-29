@@ -1,0 +1,7 @@
+JTVevents is a sample project to demonstrate how to interface with the justin.tv
+API.  It uses libevent's evhttp server framework.  The XML parsing is done by
+libexpat, and the javascript portions of the code rely on JQuery.
+
+The initial version was written by Eric Sumner.  If you have any questions
+about the implementation here or wish to submit a patch, please contact
+eric@justin.tv .
