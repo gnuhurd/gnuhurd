@@ -35,23 +35,22 @@
             if(t <= 0) return "right now";
             t /= 1000;
             t = Math.floor(t);
-            if(t <= 60) return "in " + t + " seconds";
-            if(t <= 300) return "in " + Math.floor(t/60) + " minutes, " + t%60 + " seconds";
+            seconds = t % 60;
+            if(seconds < 10) seconds = "0" + seconds;
             t /= 60;
             t = Math.floor(t);
-            if(t <= 60) return "in " + t + " minutes";
-            if(t <= 180) return "in " + Math.floor(t/60) + " hours, " + t%60 + " minutes";
+            minutes = t % 60;
+            if(minutes < 10) minutes = "0" + minutes;
             t /= 60;
             t = Math.floor(t);
-            if(t < 24) return "in " + t + " hours";
-            t /= 24;
-            t = Math.floor(t);
-            return "in " + t + " days";
+            hours = t
+
+            return hours+":"+minutes+":"+seconds
         }
 
         var updateCountdown = function(){
             $(".timer").html(renderCountdown());
-            if(timeUntilStart() > 0) setTimeout(updateCountdown, timeUntilStart()/1000 + 500);
+            if(timeUntilStart() > 0) setTimeout(updateCountdown, 1000);
         }
 
         var showBefore = function(){
