@@ -210,6 +210,7 @@ static void got_api(struct evhttp_request* req, void* userdata)
 
     evhttp_remove_header(d->req->output_headers, "content-type");
     evhttp_add_header(d->req->output_headers, "content-type", "application/json");
+    evhttp_add_header(d->req->output_headers, "cache-control", "no-cache");
     evbuffer_add_printf(evbuf, "{ \"eventName\": \"%s\", \"description\": \"%s\", \"serverTime\": %d, \"startTime\": %d, \"duration\": %d, \"login\": \"%s\", \"title\": \"%s\", \"profile_image\": \"%s\" }\n", d->event_title, d->description, (int)time(0), (int)(d->start), d->duration, d->login, d->channel_title, d->profile_image);
     evhttp_send_reply(d->req, 200, "OK", evbuf);
     evbuffer_free(evbuf);
