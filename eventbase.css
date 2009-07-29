@@ -46,6 +46,23 @@ img.right {
     z-index: -2;
 }
 
+img.profile {
+    float: left;
+    margin: 0px;
+    margin: 12px;
+}
+
+.channeltitle a {
+    font-size: 9pt;
+    color: rgb(0,51,92);
+    text-decoration: none;
+    font-weight: bold;
+}
+
+.description {
+    font-size: 8pt;
+}
+
 .eventtitle {
     color: rgb(204,255,153);
     font-size: 18pt;
@@ -72,7 +89,15 @@ div.header {
     left: 0px;
     right: 0px;
     height: 72px;
-    padding-left: 5px;
+    font-family: sans-serif;
+}
+
+div.headertext {
+    position: absolute;
+    top: 12px;
+    bottom: 0px;
+    right: 12px;
+    left: 72px;
 }
 
 div.footer {

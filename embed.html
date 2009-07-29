@@ -54,7 +54,7 @@
         }
 
         var renderTemplate = function(){
-            $(".channeltitle").html(eventInfo.title);
+            $(".channeltitle").html("<a href=\"http://justin.tv/"+eventInfo.login+"\" target=\"_top\">" + eventInfo.title + "</a>");
             $(".eventtitle").html(eventInfo.eventName);
             $(".description").html(eventInfo.description);
             $("img.profile").attr("src", eventInfo.profile_image);
@@ -86,9 +86,15 @@
         });
     </script>
 </head><body>
-<div class="header"><img class="profile" src="broken.jpg" width="48" height="48" float="left"><span class="channeltitle">&nbsp;</span><br><span class="description">&nbsp;</span></div>
+<div class="header">
+    <img class="profile" src="broken.jpg" width="48" height="48">
+    <div class="headertext">
+        <span class="channeltitle">&nbsp;</span><br>
+        <span class="description">&nbsp;</span>
+    </div>
+</div>
 <div class="before" style="z-index: 3">&nbsp;</div>
 <div class="during" style="z-index: 2">&nbsp;</div>
 <div class="after"  style="z-index: 1">&nbsp;</div>
-<div class="footer">powered by <a href="http://justin.tv">justin.tv</a></div>
+<div class="footer">powered by <a href="http://justin.tv" target="_top">justin.tv</a></div>
 </body></html>
